@@ -302,14 +302,14 @@ impl Component for Model {
 
     fn view(&self) -> Html {
         html! {
-            <div>
+            <div class="site">
                 //<input
                 <button onclick=self.link.callback(|_| Msg::DrawDefault)>{ "Default" }</button>
                 <button onclick=self.link.callback(|_| Msg::DrawObstacle)>{ "Obstacle" }</button>
                 <button onclick=self.link.callback(|_| Msg::DrawGoal)>{ "Set Goal" }</button>
                 <button onclick=self.link.callback(|_| Msg::Start)>{ "Start" }</button>
                 <div class="grid-wrapper">
-                    <div class="grid" onmousedown=self.link.callback(|_| Msg::DrawingStart), onmouseup=self.link.callback(|_| Msg::DrawingStop)>
+                    <div class="grid" onmousedown=self.link.callback(|_| Msg::DrawingStart) ontouchstart=self.link.callback(|_| Msg::DrawingStart), onmouseup=self.link.callback(|_| Msg::DrawingStop) ontouchend=self.link.callback(|_| Msg::DrawingStop)>
                     {
                         for self.grid.rows().iter()
                             .map(|v| html! {
@@ -317,6 +317,10 @@ impl Component for Model {
                                     { for v.iter()
                                         .map(|x| html! {
                                             <div class=x.class_str() id=x.id() onmousemove=
+                                            {
+                                                let cpy = x.clone();
+                                                self.link.callback(move |_| Msg::ToggleCell(cpy.id().clone()))
+                                            } ontouchmove=
                                             {
                                                 let cpy = x.clone();
                                                 self.link.callback(move |_| Msg::ToggleCell(cpy.id().clone()))

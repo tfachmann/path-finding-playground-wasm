@@ -15,13 +15,9 @@ struct Grid {
 
 impl Grid {
     fn new(width: usize, height: usize) -> Self {
-        // construct a vector of cells (with ids)
         let data = (0..width * height)
-            .map(|x| Cell::new(x))
+            .map(|x| Cell::new(x, width))
             .collect::<Vec<Cell>>();
-
-        // split this vector to form a 2D Vec
-        //let data: Vec<Vec<Cell>> = a.split_inclusive(|x| (x.id + 1) % width == 0).map(|x| x.to_vec()).collect();
 
         Self {
             width,
@@ -31,7 +27,6 @@ impl Grid {
     }
 
     fn manipulate_cell(&mut self, cell_id: usize, drawing: &Drawing) {
-        //let (x, y) = self.coord_from_id(cell_id);
         self.data[cell_id].manipulate(drawing);
     }
 
@@ -43,16 +38,11 @@ impl Grid {
         x + self.width * y
     }
 
-    fn get_goal(&self) -> &Cell {
+    fn get_goal(&self) -> Option<&Cell> {
         self.data
             .iter()
             .find(|x| x.cell_type == CellType::Goal)
-            .expect("A goal has to be specified")
     }
-
-    //fn set_visisted(&mut self, x: usize, y: usize) {
-    //self.data
-    //}
 
     fn smallest_distance(&self) -> &Cell {
         self.data
@@ -72,7 +62,6 @@ impl Grid {
                     continue;
                 }
                 let id_n = self.id_from_coord(x_n as usize, y_n as usize);
-                //println!("({}, {}): {}", x_n, y_n, id_n);
                 let cell = &self.data[id_n];
                 if cell.visited || cell.cell_type == CellType::Obstacle {
                     continue;
@@ -107,17 +96,17 @@ struct Cell {
     cell_type: CellType,
     visited: bool,
     distance: f64,
-    prev: Box<Option<Cell>>,
+    side_length: f64,
 }
 
 impl Cell {
-    fn new(id: usize) -> Self {
+    fn new(id: usize, total_width: usize) -> Self {
         Self {
             id,
             cell_type: CellType::Default,
             visited: false,
             distance: std::f64::MAX,
-            prev: Box::new(None),
+            side_length: (100 as f64 - total_width as f64) / total_width as f64,
         }
     }
 
@@ -128,6 +117,10 @@ impl Cell {
             CellType::Goal => "cell goal",
             CellType::Path => "cell path",
         }
+    }
+
+    fn style_str(&self) -> String {
+        format!("width:{}vw;height:{}vw;", self.side_length, self.side_length)
     }
 
     fn id(&self) -> usize {
@@ -151,31 +144,8 @@ enum CellType {
     Path,
 }
 
-//struct Agent {
-//x: usize,
-//y: usize,
-//grid: &Grid,
-//q: Grid,
-//}
-
-//impl Agent {
-//fn new(x: usize, y: usize, grid: &Grid) -> Self {
-//Self {
-//x,
-//y,
-//grid: Arc::new(grid.clone()),
-//q: grid.clone(),
-//}
-//}
-
-//fn calculate_path(&mut self) -> Vec<Cell> {
-////let goal = self.grid.get_goal();
-//// dijkstra
-//self.dijkstra(&self.grid.data[self.grid.id_from_coord(self.x, self.y)])
-//}
-
 fn dijkstra(grid: &mut Grid, start: usize) -> Vec<Cell> {
-    let goal = grid.get_goal().clone();
+    let goal = grid.get_goal().unwrap().clone();
 
     let mut q = grid.clone();
     // initialize
@@ -207,10 +177,8 @@ fn dijkstra(grid: &mut Grid, start: usize) -> Vec<Cell> {
             }
         }
     }
-    println!("calculating path...");
     let mut cur = prevs.get(&goal.id);
     while let Some(el) = cur {
-        //println!("ID: {}", el.id);
         path.push(el.clone());
         cur = prevs.get(&el.id);
     }
@@ -221,9 +189,36 @@ fn dijkstra(grid: &mut Grid, start: usize) -> Vec<Cell> {
 struct Model {
     link: ComponentLink<Self>,
     grid: Grid,
-    //agent: Agent,
     drawing: Drawing,
     is_drawing: bool,
+}
+
+impl Model {
+    fn button_class_str(&self, msg: &Msg) -> &str {
+        if msg == &Msg::DrawDefault && self.drawing == Drawing::Default ||
+           msg == &Msg::DrawObstacle && self.drawing == Drawing::Obstacle ||
+           msg == &Msg::DrawGoal && self.drawing == Drawing::Goal {
+               "toggled"
+        }
+        else {
+            ""
+        }
+    }
+
+    fn toggle_cell(&mut self, cell_id: usize) {
+        self.grid.manipulate_cell(cell_id, &self.drawing);
+        for el in self.grid.data.iter_mut() {
+            if el.cell_type == CellType::Path {
+                el.cell_type = CellType::Default;
+            }
+            el.visited = false;
+        }
+        if self.grid.get_goal().is_some() {
+            for el in dijkstra(&mut self.grid, 0) {
+                self.grid.data[el.id].cell_type = CellType::Path;
+            }
+        }
+    }
 }
 
 #[derive(PartialEq)]
@@ -233,27 +228,27 @@ enum Drawing {
     Goal,
 }
 
+#[derive(PartialEq)]
 enum Msg {
     DrawingStart,
     DrawingStop,
     DrawDefault,
     DrawObstacle,
     DrawGoal,
-    Start,
     ToggleCell(usize),
+    ForceToggle(usize),
 }
 
 impl Component for Model {
     type Message = Msg;
     type Properties = ();
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
-        let grid = Grid::new(20, 20);
+        let grid = Grid::new(30, 30);
         Self {
             link,
             grid,
             drawing: Drawing::Obstacle,
             is_drawing: false,
-            //agent: Agent::new(0, 0, Box<grid>),
         }
     }
 
@@ -263,32 +258,13 @@ impl Component for Model {
             Msg::DrawingStop => self.is_drawing = false,
             Msg::ToggleCell(x) => {
                 if self.is_drawing {
-                    self.grid.manipulate_cell(x, &self.drawing);
-                    for el in self.grid.data.iter_mut() {
-                        if el.cell_type == CellType::Path {
-                            el.cell_type = CellType::Default;
-                        }
-                        el.visited = false;
-                    }
-                    for el in dijkstra(&mut self.grid, 0) {
-                        self.grid.data[el.id].cell_type = CellType::Path;
-                    }
+                    self.toggle_cell(x);
                 }
             }
+            Msg::ForceToggle(x) => self.toggle_cell(x),
             Msg::DrawDefault => self.drawing = Drawing::Default,
             Msg::DrawObstacle => self.drawing = Drawing::Obstacle,
             Msg::DrawGoal => self.drawing = Drawing::Goal,
-            Msg::Start => {
-                for el in self.grid.data.iter_mut() {
-                    if el.cell_type == CellType::Path {
-                        el.cell_type = CellType::Default;
-                    }
-                    el.visited = false;
-                }
-                for el in dijkstra(&mut self.grid, 0) {
-                    self.grid.data[el.id].cell_type = CellType::Path;
-                }
-            }
         }
         true
     }
@@ -304,10 +280,9 @@ impl Component for Model {
         html! {
             <div class="site">
                 //<input
-                <button onclick=self.link.callback(|_| Msg::DrawDefault)>{ "Default" }</button>
-                <button onclick=self.link.callback(|_| Msg::DrawObstacle)>{ "Obstacle" }</button>
-                <button onclick=self.link.callback(|_| Msg::DrawGoal)>{ "Set Goal" }</button>
-                <button onclick=self.link.callback(|_| Msg::Start)>{ "Start" }</button>
+                <button class=self.button_class_str(&Msg::DrawDefault) onclick=self.link.callback(|_| Msg::DrawDefault)>{ "Default" }</button>
+                <button class=self.button_class_str(&Msg::DrawObstacle) onclick=self.link.callback(|_| Msg::DrawObstacle)>{ "Obstacle" }</button>
+                <button class=self.button_class_str(&Msg::DrawGoal) onclick=self.link.callback(|_| Msg::DrawGoal)>{ "Set Goal" }</button>
                 <div class="grid-wrapper">
                     <div class="grid" onmousedown=self.link.callback(|_| Msg::DrawingStart) ontouchstart=self.link.callback(|_| Msg::DrawingStart), onmouseup=self.link.callback(|_| Msg::DrawingStop) ontouchend=self.link.callback(|_| Msg::DrawingStop)>
                     {
@@ -324,7 +299,12 @@ impl Component for Model {
                                             {
                                                 let cpy = x.clone();
                                                 self.link.callback(move |_| Msg::ToggleCell(cpy.id().clone()))
-                                            }>
+                                            } onclick=
+                                            {
+                                                let cpy = x.clone();
+                                                self.link.callback(move |_| Msg::ForceToggle(cpy.id().clone()))
+                                            }
+                                            style=x.style_str()>
                                             </div> })
                                     }
                                 </div>
@@ -355,6 +335,5 @@ mod tests {
         for x in res {
             println!("{:?} - {}", grid.coord_from_id(x.id), x.id);
         }
-        //res.iter().map(|x| println!("{:?}\n", grid.coord_from_id(x.id)));
     }
 }

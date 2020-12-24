@@ -3,16 +3,35 @@ html {
 
 body {
   background: #323846;
-  overflow-x: hidden;
   height: 100%;
+  position: relative;
+}
+
+button {
+    background: #1D272B;
+    margin: 0 0 2px 2px;
+    padding: 7px 12px;
+    font-size: 12pt;
+    border: black;
+    border-radius: 10px;
+    color: white;
+    transition-duration: 0.4s;
+}
+
+button:hover, .toggled {
+    background-color: #ECEFF1;
+    color: #1D272B;
 }
 
 .site {
-  align: center
+  align: center;
+  margin: 0 auto;
+  width: 97%;
+  height: 97%;
 }
 
 .grid-wrapper {
-  margin: 20px;
+  margin: 10px 0 0 0;
 }
 
 .cell {
@@ -23,10 +42,10 @@ body {
   border-radius: 2px;
   /*box-shadow: inset 20px 20px 60px #2a2e3a, inset -20px -20px 60px #2a2e3a;*/
   color: var(--text-dark);
-  width: 30px;
-  height: 30px;
-  padding: 2px;
-  margin: 2px;
+  width: 6vw;
+  height: 6vw;
+  padding: 1px;
+  margin: 1px;
 }
 
 .default {
